@@ -16,11 +16,27 @@ export default function LoginPage() {
     e.preventDefault();
     setError("");
 
-    // Demo authentication
+    // Check demo admin credentials
     if (username === "admin" && password === "admin123") {
-      // Store auth token (demo)
       localStorage.setItem("authToken", "demo-token-123");
       localStorage.setItem("userRole", "educator");
+      localStorage.setItem("userName", "Admin User");
+      router.push("/dashboard");
+      return;
+    }
+
+    // Check registered users
+    const users = JSON.parse(localStorage.getItem("users") || "[]");
+    const user = users.find(
+      u => u.username === username && u.password === password
+    );
+
+    if (user) {
+      // Store auth token and user info
+      localStorage.setItem("authToken", `token-${user.id}`);
+      localStorage.setItem("userRole", user.role);
+      localStorage.setItem("userName", user.fullName);
+      localStorage.setItem("userEmail", user.email);
       router.push("/dashboard");
     } else {
       setError("Invalid username or password");
@@ -120,8 +136,8 @@ export default function LoginPage() {
             </Link>
             <p className="text-sm text-slate-600">
               Don't have an account?{" "}
-              <Link href="#" className="text-indigo-600 hover:text-indigo-700 font-medium">
-                Contact Admin
+              <Link href="/signup" className="text-indigo-600 hover:text-indigo-700 font-medium">
+                Sign up here
               </Link>
             </p>
           </div>

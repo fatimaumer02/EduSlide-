@@ -62,20 +62,26 @@ export default function Navbar() {
               Login
             </Link>
             <Link
-              href="/upload"
+              href="/signup"
               className="px-6 py-2 rounded-lg bg-indigo-600 text-white font-semibold hover:bg-indigo-700 transition-all duration-200"
             >
-              Get Started
+              Sign Up
             </Link>
           </div>
 
           {/* Mobile Menu Button */}
-          <div className="md:hidden">
+          <div className="md:hidden flex items-center gap-2">
             <Link
-              href="/upload"
+              href="/login"
+              className="px-4 py-2 rounded-lg border border-indigo-600 text-indigo-600 font-semibold text-sm hover:bg-indigo-50 transition-all duration-200"
+            >
+              Login
+            </Link>
+            <Link
+              href="/signup"
               className="px-4 py-2 rounded-lg bg-indigo-600 text-white font-semibold text-sm hover:bg-indigo-700 transition-all duration-200"
             >
-              Get Started
+              Sign Up
             </Link>
           </div>
         </div>

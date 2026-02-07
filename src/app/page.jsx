@@ -43,18 +43,21 @@ export default function Home() {
           {/* CTA Button */}
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center pt-4">
             <Link 
-              href="/upload" 
+              href="/signup" 
               className="group inline-flex items-center gap-3 px-8 py-4 rounded-xl bg-indigo-600 text-white font-semibold text-lg shadow-lg hover:bg-indigo-700 hover:shadow-xl transition-all duration-200"
             >
               <Sparkles className="w-5 h-5" />
-              <span>Generate Slides</span>
+              <span>Get Started Free</span>
               <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform duration-200" />
             </Link>
 
-            <button className="inline-flex items-center gap-2 px-8 py-4 rounded-xl bg-white text-slate-700 font-semibold text-lg border-2 border-slate-200 hover:border-indigo-200 hover:bg-slate-50 transition-all duration-200">
+            <Link
+              href="/upload"
+              className="inline-flex items-center gap-2 px-8 py-4 rounded-xl bg-white text-slate-700 font-semibold text-lg border-2 border-slate-200 hover:border-indigo-200 hover:bg-slate-50 transition-all duration-200"
+            >
               <BookOpen className="w-5 h-5" />
-              Learn More
-            </button>
+              Try Demo
+            </Link>
           </div>
 
           {/* Stats Section */}
@@ -259,7 +262,7 @@ export default function Home() {
               Join thousands of educators who are saving time and creating better presentations
             </p>
             <Link
-              href="/upload"
+              href="/signup"
               className="inline-flex items-center gap-3 px-8 py-4 rounded-xl bg-white text-indigo-600 font-semibold text-lg shadow-lg hover:bg-slate-50 transition-all duration-200"
             >
               <Sparkles className="w-5 h-5" />
