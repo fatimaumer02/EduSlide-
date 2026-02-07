@@ -65,11 +65,11 @@ export default function Home() {
             </Link>
 
             <Link
-              href="/upload"
+              href="/templates"
               className="inline-flex items-center gap-2 px-8 py-4 rounded-xl bg-white text-slate-700 font-semibold text-lg border-2 border-slate-200 hover:border-indigo-200 hover:bg-slate-50 transition-all duration-200"
             >
               <BookOpen className="w-5 h-5" />
-              Try Demo
+              Browse Templates
             </Link>
           </div>
 

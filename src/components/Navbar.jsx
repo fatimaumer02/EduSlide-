@@ -30,6 +30,7 @@ export default function Navbar() {
   // Public navigation links (for non-logged-in users)
   const publicNavLinks = [
     { href: "/", label: "Home" },
+    { href: "/templates", label: "Templates" },
     { href: "/about", label: "About" },
     { href: "/contact", label: "Contact" },
   ];
@@ -37,9 +38,9 @@ export default function Navbar() {
   // Authenticated navigation links (for logged-in users)
   const authNavLinks = [
     { href: "/dashboard", label: "Dashboard" },
+    { href: "/templates", label: "Templates" },
     { href: "/upload", label: "Create" },
     { href: "/dashboard/presentations", label: "Presentations" },
-    { href: "/dashboard/topics", label: "Topics" },
   ];
 
   const navLinks = isLoggedIn ? authNavLinks : publicNavLinks;

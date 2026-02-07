@@ -2,18 +2,21 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Upload, Sparkles, FileText, Zap, ArrowRight } from "lucide-react";
+import { Upload, Sparkles, FileText, Zap, ArrowRight, Layers } from "lucide-react";
 import FileUpload from "../../components/FileUpload";
 import TopicInput from "../../components/TopicInput";
+import TemplateSelector from "../../components/TemplateSelector";
 
 export default function UploadPage() {
   const [file, setFile] = useState(null);
   const [topic, setTopic] = useState("");
+  const [selectedTemplate, setSelectedTemplate] = useState("modern-professional");
+  const [showTemplates, setShowTemplates] = useState(false);
   const router = useRouter();
 
   function handleGenerate() {
     const fakeFileId = "demo123";
-    router.push(`/preview?fileId=${fakeFileId}&topic=${encodeURIComponent(topic)}`);
+    router.push(`/preview?fileId=${fakeFileId}&topic=${encodeURIComponent(topic)}&template=${selectedTemplate}`);
   }
 
   return (
@@ -79,6 +82,43 @@ export default function UploadPage() {
                 Describe what you want to create a presentation about
               </p>
               <TopicInput topic={topic} setTopic={setTopic} />
+            </div>
+
+            {/* Template Selection Toggle */}
+            <div className="mb-8">
+              <button
+                onClick={() => setShowTemplates(!showTemplates)}
+                className="w-full flex items-center justify-between p-4 bg-slate-50 hover:bg-slate-100 border-2 border-slate-200 rounded-xl transition-all duration-200"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-indigo-100 flex items-center justify-center">
+                    <Layers className="w-5 h-5 text-indigo-600" />
+                  </div>
+                  <div className="text-left">
+                    <h3 className="text-lg font-semibold text-slate-800">
+                      Choose Template
+                    </h3>
+                    <p className="text-sm text-slate-600">
+                      {selectedTemplate ? "Template selected" : "Select a design for your slides"}
+                    </p>
+                  </div>
+                </div>
+                <div className={`transform transition-transform duration-200 ${showTemplates ? "rotate-180" : ""}`}>
+                  <svg className="w-6 h-6 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </div>
+              </button>
+
+              {/* Template Selector */}
+              {showTemplates && (
+                <div className="mt-6 p-6 bg-slate-50 rounded-xl border-2 border-slate-200">
+                  <TemplateSelector 
+                    selectedTemplate={selectedTemplate}
+                    onSelectTemplate={setSelectedTemplate}
+                  />
+                </div>
+              )}
             </div>
 
             {/* Features Info */}
