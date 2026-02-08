@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import pdf from 'pdf-parse/lib/pdf-parse.js';
+import { PDFParse } from 'pdf-parse';
 
 export async function POST(request) {
   try {
@@ -17,8 +17,10 @@ export async function POST(request) {
     const fileName = file.name.toLowerCase();
 
     if (fileName.endsWith('.pdf')) {
-      const pdfData = await pdf(buffer);
-      text = pdfData.text;
+      const parser = new PDFParse();
+      const result = await parser.parseBuffer(buffer);
+      // Collect text from all pages
+      text = result.pages.map(p => p.text || '').join('\n');
     } else if (fileName.endsWith('.txt') || fileName.endsWith('.md')) {
       text = new TextDecoder().decode(buffer);
     } else {

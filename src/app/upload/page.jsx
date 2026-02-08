@@ -90,8 +90,12 @@ export default function UploadPage() {
         });
         presentationId = presentation.id;
 
-        // Save slides content as JSON in the presentation record
-        await updatePresentation(presentationId, { slides_data: JSON.stringify(slides) });
+        // Save slides content as JSON in the presentation record (optional column)
+        try {
+          await updatePresentation(presentationId, { slides_data: JSON.stringify(slides) });
+        } catch {
+          // slides_data column may not exist yet — non-critical
+        }
       }
 
       // Step 4: Navigate to preview — pass slides via sessionStorage
@@ -232,6 +236,14 @@ export default function UploadPage() {
               </div>
             </div>
 
+            {/* Error Message */}
+            {error && (
+              <div className="flex items-start gap-3 p-4 bg-red-50 border border-red-200 rounded-xl mb-4">
+                <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+                <p className="text-red-700 text-sm">{error}</p>
+              </div>
+            )}
+
             {/* Generate Button */}
             <button 
               onClick={handleGenerate}
@@ -243,7 +255,7 @@ export default function UploadPage() {
               ) : (
                 <Sparkles className="w-6 h-6" />
               )}
-              <span>{generating ? "Generating..." : "Generate Slides"}</span>
+              <span>{generating ? progress || "Generating..." : "Generate Slides with AI"}</span>
               {!generating && <ArrowRight className="w-5 h-5" />}
             </button>
 

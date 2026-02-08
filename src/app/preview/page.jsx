@@ -1,55 +1,82 @@
 "use client";
 
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { useState, useEffect, Suspense } from "react";
-import { Download, Sparkles, ChevronLeft, ChevronRight, FileText } from "lucide-react";
-import Loader from "../../components/Loader";
+import { Download, Sparkles, ChevronLeft, ChevronRight, FileText, ArrowLeft, Presentation, RotateCcw } from "lucide-react";
+import { downloadPptx } from "../../lib/pptxGenerator";
+import { incrementPresentationDownloads, trackEvent } from "../../lib/api";
+
+// Template color map for preview styling
+const TEMPLATE_COLORS = {
+  "modern-professional": { primary: "#4F46E5", bg: "#F8FAFC", accent: "#818CF8", titleBg: "#4F46E5" },
+  "academic-classic": { primary: "#0F172A", bg: "#FFFFFF", accent: "#475569", titleBg: "#0F172A" },
+  "creative-vibrant": { primary: "#EC4899", bg: "#FDF2F8", accent: "#F472B6", titleBg: "#EC4899" },
+  "minimal-elegant": { primary: "#059669", bg: "#F0FDF4", accent: "#34D399", titleBg: "#059669" },
+};
 
 function PreviewContent() {
   const searchParams = useSearchParams();
-  const fileId = searchParams.get("fileId");
-  const topic = searchParams.get("topic");
+  const router = useRouter();
+  const topic = searchParams.get("topic") || "Presentation";
+  const template = searchParams.get("template") || "modern-professional";
+  const presentationId = searchParams.get("id");
 
   const [slides, setSlides] = useState([]);
   const [loading, setLoading] = useState(true);
   const [currentSlide, setCurrentSlide] = useState(0);
+  const [downloading, setDownloading] = useState(false);
+  const [error, setError] = useState("");
+  const colors = TEMPLATE_COLORS[template] || TEMPLATE_COLORS["modern-professional"];
 
   useEffect(() => {
-    // Simulate API call
-    setTimeout(() => {
-      const demoSlides = [
-        {
-          title: topic || "Introduction",
-          content: [
-            "Welcome to the presentation",
-            "AI-generated content based on your input",
-            "Professional design and layout"
-          ]
-        },
-        {
-          title: "Key Concepts",
-          content: [
-            "Main idea and supporting details",
-            "Evidence and examples",
-            "Analysis and interpretation"
-          ]
-        },
-        {
-          title: "Summary",
-          content: [
-            "Recap of main points",
-            "Key takeaways",
-            "Next steps and resources"
-          ]
+    // Load slides from sessionStorage (set by upload page)
+    try {
+      const stored = sessionStorage.getItem("generatedSlides");
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setSlides(parsed);
+          setLoading(false);
+          return;
         }
-      ];
-      setSlides(demoSlides);
-      setLoading(false);
-    }, 2000);
-  }, [topic]);
+      }
+    } catch {}
 
-  const handleDownload = () => {
-    alert("Download functionality coming soon!");
+    // No slides found — show error
+    setError("No slides found. Please generate a presentation first.");
+    setLoading(false);
+  }, []);
+
+  // Keyboard navigation
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === "ArrowRight" || e.key === "ArrowDown") {
+        setCurrentSlide((prev) => Math.min(slides.length - 1, prev + 1));
+      } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
+        setCurrentSlide((prev) => Math.max(0, prev - 1));
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [slides.length]);
+
+  const handleDownload = async () => {
+    setDownloading(true);
+    try {
+      await downloadPptx(slides, { title: topic, template });
+
+      // Track in Supabase if logged in
+      const userId = localStorage.getItem("userId");
+      if (userId && presentationId) {
+        await incrementPresentationDownloads(presentationId);
+        await trackEvent({ userId, presentationId, eventType: "download" });
+      }
+    } catch (err) {
+      console.error("Download error:", err);
+      alert("Failed to generate PowerPoint file.");
+    } finally {
+      setDownloading(false);
+    }
   };
 
   if (loading) {
@@ -57,65 +84,152 @@ function PreviewContent() {
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 flex items-center justify-center">
         <div className="text-center">
           <div className="w-16 h-16 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-slate-700 text-lg font-medium">Creating your presentation...</p>
+          <p className="text-slate-700 text-lg font-medium">Loading your presentation...</p>
         </div>
       </div>
     );
   }
 
+  if (error || slides.length === 0) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 flex items-center justify-center">
+        <div className="text-center max-w-md mx-auto p-8">
+          <Presentation className="w-16 h-16 text-slate-400 mx-auto mb-4" />
+          <h2 className="text-2xl font-bold text-slate-800 mb-2">No Presentation Found</h2>
+          <p className="text-slate-600 mb-6">{error || "Generate a presentation from the upload page first."}</p>
+          <button
+            onClick={() => router.push("/upload")}
+            className="inline-flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white font-semibold rounded-xl hover:bg-indigo-700 transition-all"
+          >
+            <ArrowLeft className="w-5 h-5" />
+            Go to Upload
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const slide = slides[currentSlide];
+  const isTitleSlide = slide.layout === "title" || currentSlide === 0;
+  const isSummarySlide = slide.layout === "summary" || currentSlide === slides.length - 1;
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-16">
+      <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
         
         {/* Header */}
-        <div className="max-w-5xl mx-auto text-center mb-12">
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white border border-indigo-200 shadow-sm mb-6">
-            <Sparkles className="w-4 h-4 text-indigo-600" />
+        <div className="max-w-5xl mx-auto flex items-center justify-between mb-8">
+          <button
+            onClick={() => router.push("/upload")}
+            className="flex items-center gap-2 text-slate-600 hover:text-indigo-600 font-medium transition-colors"
+          >
+            <ArrowLeft className="w-5 h-5" />
+            Back
+          </button>
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-5 h-5 text-indigo-600" />
             <span className="text-sm font-semibold text-indigo-600">
-              Preview Your Slides
+              {slides.length} Slides Generated
             </span>
           </div>
-
-          <h2 className="text-4xl sm:text-5xl font-bold text-slate-800 mb-4">
-            Your Presentation is Ready
-          </h2>
-          <p className="text-lg text-slate-600">
-            Review your slides and download when ready
-          </p>
+          <button
+            onClick={() => router.push("/upload")}
+            className="flex items-center gap-2 text-slate-600 hover:text-indigo-600 font-medium transition-colors"
+          >
+            <RotateCcw className="w-4 h-4" />
+            New
+          </button>
         </div>
 
-        {/* Slide Preview */}
-        <div className="max-w-4xl mx-auto">
-          {/* Current Slide Display */}
-          <div className="bg-white border border-slate-200 rounded-2xl shadow-lg p-12 mb-6 min-h-[400px] flex flex-col justify-center">
-            <div className="text-center space-y-8">
-              <h3 className="text-3xl font-bold text-slate-800">
-                {slides[currentSlide]?.title}
+        {/* Presentation Title */}
+        <div className="max-w-5xl mx-auto text-center mb-6">
+          <h2 className="text-3xl sm:text-4xl font-bold text-slate-800">{topic}</h2>
+        </div>
+
+        {/* Slide Display */}
+        <div className="max-w-5xl mx-auto">
+          <div
+            className="rounded-2xl shadow-xl border-2 overflow-hidden mb-6 min-h-[450px] flex flex-col justify-center relative"
+            style={{
+              backgroundColor: (isTitleSlide || isSummarySlide) ? colors.titleBg : colors.bg,
+              borderColor: colors.primary + "33",
+            }}
+          >
+            {/* Slide number badge */}
+            <div
+              className="absolute top-4 right-4 px-3 py-1 rounded-full text-xs font-bold"
+              style={{ backgroundColor: colors.primary + "22", color: colors.primary }}
+            >
+              {currentSlide + 1} / {slides.length}
+            </div>
+
+            <div className="p-8 sm:p-12">
+              {/* Title */}
+              <h3
+                className="text-2xl sm:text-3xl font-bold mb-2 text-center"
+                style={{ color: (isTitleSlide || isSummarySlide) ? "#FFFFFF" : colors.primary }}
+              >
+                {slide.title}
               </h3>
-              <div className="space-y-4">
-                {slides[currentSlide]?.content.map((item, index) => (
-                  <div 
-                    key={index}
-                    className="flex items-start gap-3 text-left max-w-2xl mx-auto"
-                  >
-                    <div className="w-2 h-2 rounded-full bg-indigo-600 mt-2 flex-shrink-0"></div>
-                    <p className="text-lg text-slate-700">{item}</p>
-                  </div>
-                ))}
+
+              {/* Subtitle */}
+              {slide.subtitle && (
+                <p
+                  className="text-lg mb-6 text-center"
+                  style={{ color: (isTitleSlide || isSummarySlide) ? colors.accent : colors.accent }}
+                >
+                  {slide.subtitle}
+                </p>
+              )}
+
+              {/* Divider */}
+              <div className="flex justify-center mb-6">
+                <div className="w-20 h-1 rounded-full" style={{ backgroundColor: colors.accent }}></div>
               </div>
+
+              {/* Content bullets */}
+              {slide.content && slide.content.length > 0 && (
+                <div
+                  className={`space-y-3 max-w-3xl mx-auto ${slide.layout === "two-column" ? "grid grid-cols-1 sm:grid-cols-2 gap-4 space-y-0" : ""}`}
+                >
+                  {slide.content.map((item, index) => (
+                    <div key={index} className="flex items-start gap-3">
+                      <div
+                        className="w-2 h-2 rounded-full mt-2 flex-shrink-0"
+                        style={{ backgroundColor: (isTitleSlide || isSummarySlide) ? "#FFFFFF" : colors.primary }}
+                      ></div>
+                      <p
+                        className="text-base sm:text-lg leading-relaxed"
+                        style={{ color: (isTitleSlide || isSummarySlide) ? "#E2E8F0" : "#334155" }}
+                      >
+                        {item}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Speaker notes preview */}
+              {slide.notes && (
+                <div className="mt-8 pt-4 border-t" style={{ borderColor: (isTitleSlide || isSummarySlide) ? "rgba(255,255,255,0.2)" : "#E2E8F0" }}>
+                  <p className="text-xs italic" style={{ color: (isTitleSlide || isSummarySlide) ? "rgba(255,255,255,0.5)" : "#94A3B8" }}>
+                    Notes: {slide.notes}
+                  </p>
+                </div>
+              )}
             </div>
           </div>
 
           {/* Navigation Controls */}
-          <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-6 mb-6">
+          <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-4 sm:p-6 mb-6">
             <div className="flex items-center justify-between">
               <button
                 onClick={() => setCurrentSlide(Math.max(0, currentSlide - 1))}
                 disabled={currentSlide === 0}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-slate-100 text-slate-700 font-medium hover:bg-slate-200 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-slate-100 text-slate-700 font-medium hover:bg-slate-200 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
               >
                 <ChevronLeft className="w-5 h-5" />
-                Previous
+                <span className="hidden sm:inline">Previous</span>
               </button>
 
               <div className="flex items-center gap-2">
@@ -128,9 +242,9 @@ function PreviewContent() {
               <button
                 onClick={() => setCurrentSlide(Math.min(slides.length - 1, currentSlide + 1))}
                 disabled={currentSlide === slides.length - 1}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-slate-100 text-slate-700 font-medium hover:bg-slate-200 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-slate-100 text-slate-700 font-medium hover:bg-slate-200 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
               >
-                Next
+                <span className="hidden sm:inline">Next</span>
                 <ChevronRight className="w-5 h-5" />
               </button>
             </div>
@@ -139,33 +253,43 @@ function PreviewContent() {
           {/* Download Button */}
           <button
             onClick={handleDownload}
-            className="w-full inline-flex items-center justify-center gap-3 px-8 py-5 rounded-xl bg-indigo-600 text-white font-semibold text-lg shadow-lg hover:bg-indigo-700 hover:shadow-xl transition-all duration-200"
+            disabled={downloading}
+            className="w-full inline-flex items-center justify-center gap-3 px-8 py-5 rounded-xl bg-indigo-600 text-white font-semibold text-lg shadow-lg hover:bg-indigo-700 hover:shadow-xl transition-all duration-200 disabled:opacity-60"
           >
-            <Download className="w-6 h-6" />
-            <span>Download PowerPoint</span>
+            {downloading ? (
+              <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <Download className="w-6 h-6" />
+            )}
+            <span>{downloading ? "Creating PowerPoint..." : "Download PowerPoint (.pptx)"}</span>
           </button>
 
           {/* Slide Thumbnails */}
-          <div className="mt-8 grid grid-cols-3 gap-4">
-            {slides.map((slide, index) => (
+          <div className="mt-8 grid grid-cols-3 sm:grid-cols-5 gap-3">
+            {slides.map((s, index) => (
               <button
                 key={index}
                 onClick={() => setCurrentSlide(index)}
-                className={`p-4 rounded-lg border-2 transition-all duration-200 text-left ${
+                className={`p-3 rounded-lg border-2 transition-all duration-200 text-left ${
                   currentSlide === index
-                    ? 'border-indigo-600 bg-indigo-50'
-                    : 'border-slate-200 bg-white hover:border-indigo-300'
+                    ? "border-indigo-600 bg-indigo-50 shadow-md"
+                    : "border-slate-200 bg-white hover:border-indigo-300"
                 }`}
               >
-                <div className="text-xs font-semibold text-slate-500 mb-1">
+                <div className="text-[10px] font-semibold text-slate-500 mb-1">
                   Slide {index + 1}
                 </div>
-                <div className="text-sm font-semibold text-slate-800 truncate">
-                  {slide.title}
+                <div className="text-xs font-semibold text-slate-800 truncate">
+                  {s.title}
                 </div>
               </button>
             ))}
           </div>
+
+          {/* Keyboard hint */}
+          <p className="text-center text-slate-400 text-xs mt-6">
+            Tip: Use arrow keys to navigate slides
+          </p>
         </div>
       </div>
     </div>
