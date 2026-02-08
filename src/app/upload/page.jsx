@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Upload, Sparkles, FileText, Zap, ArrowRight, Layers, AlertCircle } from "lucide-react";
 import FileUpload from "../../components/FileUpload";
 import TopicInput from "../../components/TopicInput";
 import TemplateSelector from "../../components/TemplateSelector";
-import { createPresentation, createUpload, updatePresentation } from "../../lib/api";
+import { createPresentation, createUpload, updatePresentation, canGenerateToday } from "../../lib/api";
 
 export default function UploadPage() {
   const [file, setFile] = useState(null);
@@ -16,7 +16,26 @@ export default function UploadPage() {
   const [generating, setGenerating] = useState(false);
   const [progress, setProgress] = useState("");
   const [error, setError] = useState("");
+  const [dailyLimit, setDailyLimit] = useState({ allowed: true, used: 0, limit: 3, remaining: 3 });
   const router = useRouter();
+
+  // Redirect to login if not authenticated
+  useEffect(() => {
+    const token = localStorage.getItem("authToken");
+    if (!token) {
+      router.push("/login");
+    }
+  }, [router]);
+
+  // Check daily generation limit on mount
+  useEffect(() => {
+    const userId = localStorage.getItem("userId");
+    if (userId) {
+      canGenerateToday(userId)
+        .then(setDailyLimit)
+        .catch(() => {});
+    }
+  }, []);
 
   async function handleGenerate() {
     setGenerating(true);
@@ -25,6 +44,18 @@ export default function UploadPage() {
 
     try {
       const userId = localStorage.getItem("userId");
+
+      // Check daily limit before proceeding
+      if (userId) {
+        const limitStatus = await canGenerateToday(userId);
+        setDailyLimit(limitStatus);
+        if (!limitStatus.allowed) {
+          throw new Error(
+            `Daily limit reached! You can generate up to ${limitStatus.limit} presentations per day. Come back tomorrow.`
+          );
+        }
+      }
+
       let fileContent = null;
 
       // Step 1: Extract text from file if uploaded
@@ -52,11 +83,15 @@ export default function UploadPage() {
           fileContent,
           template: selectedTemplate,
           slideCount: 15,
+          userId,
         }),
       });
 
       if (!genRes.ok) {
         const err = await genRes.json();
+        if (err.limitReached) {
+          setDailyLimit({ allowed: false, used: err.used, limit: err.limit, remaining: 0 });
+        }
         throw new Error(err.error || "Failed to generate slides");
       }
 
@@ -107,6 +142,10 @@ export default function UploadPage() {
       }));
 
       router.push(`/preview?topic=${encodeURIComponent(presentationTitle)}&template=${selectedTemplate}${presentationId ? `&id=${presentationId}` : ""}`);
+      // Refresh limit count after successful generation
+      if (userId) {
+        canGenerateToday(userId).then(setDailyLimit).catch(() => {});
+      }
     } catch (err) {
       console.error(err);
       setError(err.message || "Something went wrong. Please try again.");
@@ -218,6 +257,39 @@ export default function UploadPage() {
               )}
             </div>
 
+            {/* Daily Limit Info */}
+            <div className={`flex items-center gap-3 p-4 rounded-xl mb-6 border ${
+              dailyLimit.remaining === 0
+                ? "bg-red-50 border-red-200"
+                : dailyLimit.remaining === 1
+                ? "bg-amber-50 border-amber-200"
+                : "bg-indigo-50 border-indigo-200"
+            }`}>
+              <AlertCircle className={`w-5 h-5 flex-shrink-0 ${
+                dailyLimit.remaining === 0
+                  ? "text-red-500"
+                  : dailyLimit.remaining === 1
+                  ? "text-amber-500"
+                  : "text-indigo-500"
+              }`} />
+              <div>
+                <p className={`text-sm font-semibold ${
+                  dailyLimit.remaining === 0
+                    ? "text-red-700"
+                    : dailyLimit.remaining === 1
+                    ? "text-amber-700"
+                    : "text-indigo-700"
+                }`}>
+                  {dailyLimit.remaining === 0
+                    ? "Daily limit reached — you cannot generate more presentations today."
+                    : `${dailyLimit.remaining} of ${dailyLimit.limit} generations remaining today`}
+                </p>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  You can generate up to {dailyLimit.limit} presentations per day. Resets at midnight UTC.
+                </p>
+              </div>
+            </div>
+
             {/* Features Info */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8 p-6 bg-slate-50 rounded-xl border border-slate-200">
               <div className="flex items-start gap-3">
@@ -247,7 +319,7 @@ export default function UploadPage() {
             {/* Generate Button */}
             <button 
               onClick={handleGenerate}
-              disabled={(!file && !topic) || generating}
+              disabled={(!file && !topic) || generating || !dailyLimit.allowed}
               className="w-full inline-flex items-center justify-center gap-3 px-8 py-5 rounded-xl bg-indigo-600 text-white font-semibold text-lg shadow-lg hover:bg-indigo-700 hover:shadow-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-indigo-600"
             >
               {generating ? (

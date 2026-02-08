@@ -1,13 +1,59 @@
 import OpenAI from 'openai';
 import { NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
+const DAILY_GENERATION_LIMIT = 3;
+
+// Server-side Supabase client for limit checks
+function getSupabase() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  );
+}
+
+async function checkDailyLimit(userId) {
+  if (!userId) return { allowed: true }; // unauthenticated users can't be tracked
+  const supabase = getSupabase();
+  const todayStart = new Date();
+  todayStart.setUTCHours(0, 0, 0, 0);
+
+  const { count, error } = await supabase
+    .from('presentations')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .gte('created_at', todayStart.toISOString());
+
+  if (error) return { allowed: true }; // fail open on DB error
+  const used = count || 0;
+  return {
+    allowed: used < DAILY_GENERATION_LIMIT,
+    used,
+    remaining: Math.max(0, DAILY_GENERATION_LIMIT - used),
+  };
+}
+
 export async function POST(request) {
   try {
-    const { topic, fileContent, template, slideCount = 15 } = await request.json();
+    const { topic, fileContent, template, slideCount = 15, userId } = await request.json();
+
+    // Enforce daily generation limit
+    const limitCheck = await checkDailyLimit(userId);
+    if (!limitCheck.allowed) {
+      return NextResponse.json(
+        {
+          error: `Daily limit reached. You can generate up to ${DAILY_GENERATION_LIMIT} presentations per day. You have ${limitCheck.remaining} remaining.`,
+          limitReached: true,
+          used: limitCheck.used,
+          limit: DAILY_GENERATION_LIMIT,
+        },
+        { status: 429 }
+      );
+    }
 
     if (!topic && !fileContent) {
       return NextResponse.json(
