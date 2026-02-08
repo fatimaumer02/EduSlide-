@@ -17,10 +17,9 @@ export async function POST(request) {
     const fileName = file.name.toLowerCase();
 
     if (fileName.endsWith('.pdf')) {
-      const parser = new PDFParse();
-      const result = await parser.parseBuffer(buffer);
-      // Collect text from all pages
-      text = result.pages.map(p => p.text || '').join('\n');
+      const parser = new PDFParse({ data: buffer });
+      const result = await parser.getText();
+      text = result.text;
     } else if (fileName.endsWith('.txt') || fileName.endsWith('.md')) {
       text = new TextDecoder().decode(buffer);
     } else {

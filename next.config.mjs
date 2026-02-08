@@ -39,6 +39,12 @@ const nextConfig = {
 
   // Disable x-powered-by header
   poweredByHeader: false,
+
+  // Allow pdfjs-dist worker (used by pdf-parse) to run on the server
+  serverExternalPackages: ['pdfjs-dist'],
+
+  // Required for Turbopack (Next.js 16 default)
+  turbopack: {},
 };
 
 export default nextConfig;
