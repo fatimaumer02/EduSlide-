@@ -52,6 +52,12 @@ export async function signUp({ username, email, password, fullName, institution,
     throw new Error('Password must be at least 6 characters');
   }
 
+  // Prevent admin role from being set via public signup
+  const sanitizedRole = sanitize(role) || 'educator';
+  if (sanitizedRole === 'admin') {
+    throw new Error('Admin accounts cannot be created through signup');
+  }
+
   const { data, error } = await supabase
     .from('users')
     .insert([{
@@ -62,7 +68,7 @@ export async function signUp({ username, email, password, fullName, institution,
       institution: sanitize(institution),
       department: sanitize(department),
       phone: sanitize(phone),
-      role: sanitize(role) || 'educator',
+      role: sanitizedRole,
     }])
     .select()
     .single();
@@ -392,6 +398,39 @@ export async function submitContactMessage({ name, email, subject, message }) {
 
   if (error) throw error;
   return data;
+}
+
+// ============================================================
+// DAILY GENERATION LIMIT (3 per day for template-based slides)
+// ============================================================
+
+const DAILY_GENERATION_LIMIT = 3;
+
+export async function getDailyGenerationCount(userId) {
+  if (!validateUUID(userId)) throw new Error('Invalid user ID');
+
+  // Start of today (UTC)
+  const todayStart = new Date();
+  todayStart.setUTCHours(0, 0, 0, 0);
+
+  const { data, error, count } = await supabase
+    .from('presentations')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .gte('created_at', todayStart.toISOString());
+
+  if (error) throw error;
+  return count || 0;
+}
+
+export async function canGenerateToday(userId) {
+  const count = await getDailyGenerationCount(userId);
+  return {
+    allowed: count < DAILY_GENERATION_LIMIT,
+    used: count,
+    limit: DAILY_GENERATION_LIMIT,
+    remaining: Math.max(0, DAILY_GENERATION_LIMIT - count),
+  };
 }
 
 // ============================================================

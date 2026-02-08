@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Sparkles, Briefcase, GraduationCap, Lightbulb, Palette, ArrowRight, Check } from "lucide-react";
-import Link from "next/link";
+import { Sparkles, Briefcase, GraduationCap, Lightbulb, Palette, ArrowRight, Check, AlertCircle } from "lucide-react";
+import { canGenerateToday } from "../../lib/api";
 
 const templates = [
   {
@@ -104,9 +104,34 @@ export default function TemplatesPage() {
   const router = useRouter();
   const [selectedTemplate, setSelectedTemplate] = useState(null);
   const [hoveredTemplate, setHoveredTemplate] = useState(null);
+  const [dailyLimit, setDailyLimit] = useState({ allowed: true, used: 0, limit: 3, remaining: 3 });
+
+  useEffect(() => {
+    const userId = localStorage.getItem("userId");
+    if (userId) {
+      canGenerateToday(userId)
+        .then(setDailyLimit)
+        .catch(() => {});
+    }
+  }, []);
 
   const handleUseTemplate = (templateId) => {
+    const token = localStorage.getItem("authToken");
+    if (!token) {
+      router.push("/login");
+      return;
+    }
+    if (!dailyLimit.allowed) return;
     router.push(`/upload?template=${templateId}`);
+  };
+
+  const handleStartCreating = () => {
+    const token = localStorage.getItem("authToken");
+    if (!token) {
+      router.push("/login");
+      return;
+    }
+    router.push(selectedTemplate ? `/upload?template=${selectedTemplate}` : "/upload");
   };
 
   return (
@@ -128,6 +153,34 @@ export default function TemplatesPage() {
           <p className="text-xl text-slate-600">
             Select from our collection of professionally designed templates to create stunning presentations
           </p>
+
+          {/* Daily Limit Banner */}
+          <div className={`mt-6 inline-flex items-center gap-2 px-5 py-3 rounded-xl border ${
+            dailyLimit.remaining === 0
+              ? "bg-red-50 border-red-200"
+              : dailyLimit.remaining === 1
+              ? "bg-amber-50 border-amber-200"
+              : "bg-indigo-50 border-indigo-200"
+          }`}>
+            <AlertCircle className={`w-4 h-4 ${
+              dailyLimit.remaining === 0
+                ? "text-red-500"
+                : dailyLimit.remaining === 1
+                ? "text-amber-500"
+                : "text-indigo-500"
+            }`} />
+            <span className={`text-sm font-semibold ${
+              dailyLimit.remaining === 0
+                ? "text-red-700"
+                : dailyLimit.remaining === 1
+                ? "text-amber-700"
+                : "text-indigo-700"
+            }`}>
+              {dailyLimit.remaining === 0
+                ? "Daily limit reached — come back tomorrow!"
+                : `${dailyLimit.remaining} of ${dailyLimit.limit} generations remaining today`}
+            </span>
+          </div>
         </div>
 
         {/* Templates Grid */}
@@ -248,10 +301,15 @@ export default function TemplatesPage() {
                         </button>
                         <button
                           onClick={() => handleUseTemplate(template.id)}
-                          className="flex-1 flex items-center justify-center gap-2 py-3 px-4 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 transition-all duration-200"
+                          disabled={!dailyLimit.allowed}
+                          className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 font-semibold rounded-lg transition-all duration-200 ${
+                            dailyLimit.allowed
+                              ? "bg-indigo-600 text-white hover:bg-indigo-700"
+                              : "bg-slate-300 text-slate-500 cursor-not-allowed"
+                          }`}
                         >
-                          Use Template
-                          <ArrowRight className="w-4 h-4" />
+                          {dailyLimit.allowed ? "Use Template" : "Limit Reached"}
+                          {dailyLimit.allowed && <ArrowRight className="w-4 h-4" />}
                         </button>
                       </div>
                     </div>
@@ -279,14 +337,19 @@ export default function TemplatesPage() {
                 : "Select a template above or start with our default design"
               }
             </p>
-            <Link
-              href={selectedTemplate ? `/upload?template=${selectedTemplate}` : "/upload"}
-              className="inline-flex items-center gap-3 px-8 py-4 bg-indigo-600 text-white font-semibold text-lg rounded-xl hover:bg-indigo-700 transition-all duration-200 shadow-lg hover:shadow-xl"
+            <button
+              onClick={handleStartCreating}
+              disabled={!dailyLimit.allowed}
+              className={`inline-flex items-center gap-3 px-8 py-4 font-semibold text-lg rounded-xl transition-all duration-200 shadow-lg ${
+                dailyLimit.allowed
+                  ? "bg-indigo-600 text-white hover:bg-indigo-700 hover:shadow-xl"
+                  : "bg-slate-300 text-slate-500 cursor-not-allowed"
+              }`}
             >
               <Sparkles className="w-5 h-5" />
               <span>Start Creating</span>
               <ArrowRight className="w-5 h-5" />
-            </Link>
+            </button>
           </div>
         </div>
       </div>
